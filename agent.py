@@ -1,92 +1,169 @@
-"""LangGraph agent for ledger management."""
-from typing import TypedDict
-from langchain_anthropic import ChatAnthropic
-from langgraph.graph import StateGraph, END
-import json
+"""Ledger Management Agent using OpenAI, LangChain, and Pandas."""
+
+import os
+from typing import Optional
+
+import pandas as pd
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
 
-class AgentState(TypedDict):
-    """State for the ledger agent."""
-    messages: list
-    ledger_data: dict
-    current_action: str
-
-
-def get_system_prompt() -> str:
-    """Get the system prompt for the ledger agent."""
-    return """You are a helpful ledger management assistant. You help users:
-1. Record transactions
-2. View ledger summaries
-3. Calculate balances
-4. Analyze financial data
-
-When a user asks for a transaction record, extract the details and provide clear responses.
-Always be professional and accurate with financial data."""
+load_dotenv()
 
 
 def initialize_agent():
-    """Initialize the LangGraph agent."""
-    model = ChatAnthropic(model="claude-3-5-sonnet-20241022")
+    """Initialize the OpenAI model."""
 
-    def process_message(state: AgentState) -> AgentState:
-        """Process user message and generate response."""
-        system_prompt = get_system_prompt()
+    model = ChatOpenAI(
+        model=os.getenv("OPENAI_MODEL", "gpt-4"),
+        temperature=0.3
+    )
 
-        # Prepare messages for the model
-        messages = [
-            {"role": "system", "content": system_prompt},
-            *state["messages"]
-        ]
-
-        # Get response from Claude
-        response = model.invoke(messages)
-
-        # Update state
-        state["messages"].append({
-            "role": "assistant",
-            "content": response.content
-        })
-        state["current_action"] = "message_processed"
-
-        return state
-
-    # Create the graph
-    workflow = StateGraph(AgentState)
-
-    # Add nodes
-    workflow.add_node("process_message", process_message)
-
-    # Set entry point and end point
-    workflow.set_entry_point("process_message")
-    workflow.add_edge("process_message", END)
-
-    # Compile the graph
-    app = workflow.compile()
-    return app
+    return model
 
 
-def run_agent_with_input(agent, user_input: str, ledger_data: dict = None) -> str:
-    """Run the agent with user input."""
-    if ledger_data is None:
-        ledger_data = {}
+def get_ledger_dataframe(ledger_data: Optional[dict] = None) -> pd.DataFrame:
+    """Convert ledger data into a Pandas DataFrame."""
 
-    initial_state = {
-        "messages": [{"role": "user", "content": user_input}],
-        "ledger_data": ledger_data,
-        "current_action": "initialized"
+    if not ledger_data:
+        return pd.DataFrame()
+
+    try:
+        return pd.DataFrame(ledger_data)
+    except Exception:
+        return pd.DataFrame()
+
+
+def calculate_ledger_summary(ledger_data: Optional[dict] = None) -> dict:
+    """Calculate basic ledger statistics using Pandas."""
+
+    dataframe = get_ledger_dataframe(ledger_data)
+
+    if dataframe.empty:
+        return {
+            "total_entries": 0,
+            "total_debits": 0,
+            "total_credits": 0,
+            "balance": 0
+        }
+
+    total_debits = 0
+    total_credits = 0
+
+    if "debit" in dataframe.columns:
+        total_debits = pd.to_numeric(
+            dataframe["debit"],
+            errors="coerce"
+        ).fillna(0).sum()
+
+    if "credit" in dataframe.columns:
+        total_credits = pd.to_numeric(
+            dataframe["credit"],
+            errors="coerce"
+        ).fillna(0).sum()
+
+    balance = total_credits - total_debits
+
+    return {
+        "total_entries": len(dataframe),
+        "total_debits": float(total_debits),
+        "total_credits": float(total_credits),
+        "balance": float(balance)
     }
 
-    result = agent.invoke(initial_state)
 
-    # Return the last assistant message
-    for msg in reversed(result["messages"]):
-        if msg.get("role") == "assistant":
-            return msg["content"]
+def build_ledger_context(ledger_data: Optional[dict] = None) -> str:
+    """Create a readable ledger context for the language model."""
 
-    return "No response generated"
+    dataframe = get_ledger_dataframe(ledger_data)
+
+    if dataframe.empty:
+        return "No ledger transactions are currently available."
+
+    summary = calculate_ledger_summary(ledger_data)
+
+    transactions = dataframe.to_string(index=False)
+
+    return f"""
+Ledger Transactions:
+
+{transactions}
+
+Ledger Summary:
+
+Total Entries: {summary["total_entries"]}
+Total Debits: {summary["total_debits"]}
+Total Credits: {summary["total_credits"]}
+Balance: {summary["balance"]}
+"""
+
+
+def run_agent_with_input(
+    agent,
+    user_input: str,
+    ledger_data: Optional[dict] = None
+) -> str:
+    """Process the user's request using the OpenAI model."""
+
+    ledger_context = build_ledger_context(ledger_data)
+
+    prompt = f"""
+You are a Ledger Management Assistant.
+
+Your responsibilities are:
+
+- Record financial transactions.
+- Explain ledger entries.
+- Calculate balances.
+- Summarize financial transactions.
+- Analyze debit and credit information.
+- Identify possible inconsistencies in the provided ledger data.
+
+Use the ledger information provided below.
+
+{ledger_context}
+
+User Request:
+
+{user_input}
+
+Instructions:
+
+Provide a clear and accurate response.
+Use the available ledger data when answering.
+Do not invent transactions or financial values.
+If required information is missing, clearly state that it is missing.
+"""
+
+    try:
+        response = agent.invoke(prompt)
+
+        if hasattr(response, "content"):
+            return response.content
+
+        return str(response)
+
+    except Exception as error:
+        return f"Error while processing the request: {error}"
 
 
 if __name__ == "__main__":
     agent = initialize_agent()
-    response = run_agent_with_input(agent, "Hello! Can you help me manage my ledger?")
+
+    sample_ledger = {
+        "date": ["2026-09-01", "2026-09-02"],
+        "description": [
+            "Office Supplies",
+            "Customer Payment"
+        ],
+        "debit": [500, 0],
+        "credit": [0, 1500]
+    }
+
+    response = run_agent_with_input(
+        agent,
+        "Give me a summary of my ledger and calculate the balance.",
+        sample_ledger
+    )
+
     print(response)
