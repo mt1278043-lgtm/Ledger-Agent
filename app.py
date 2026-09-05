@@ -138,7 +138,7 @@ st.divider()
 st.markdown(
     """
     <div style="text-align: center; color: gray; font-size: 0.9rem;">
-        Ledger Agent | Powered by OpenAI, LangChain, Pandas and Streamlit
+        Ledger Agent | Powered by Claude AI, LangGraph, Pandas and Streamlit
     </div>
     """,
     unsafe_allow_html=True
