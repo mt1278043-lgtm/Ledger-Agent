@@ -54,12 +54,18 @@ The app will be available at `http://localhost:8501`
 
 ```
 Ledger-Agent/
-├── app.py                 # Streamlit application
-├── agent.py              # LangGraph agent configuration
-├── requirements.txt      # Python dependencies
-├── .env.example         # Environment variables template
-├── .gitignore           # Git ignore rules
-└── README.md            # This file
+├── frontend/                  # Frontend Streamlit UI
+│   ├── app.py                # Main Streamlit application
+│   └── __init__.py          # Frontend package init
+├── backend/                   # Backend logic and AI agent
+│   ├── agent.py             # Claude AI agent configuration
+│   ├── utils.py             # Utility functions
+│   └── __init__.py          # Backend package init
+├── app.py                     # Main entry point
+├── requirements.txt           # Python dependencies
+├── .env.example              # Environment variables template
+├── .gitignore                # Git ignore rules
+└── README.md                 # This file
 ```
 
 ## Usage
