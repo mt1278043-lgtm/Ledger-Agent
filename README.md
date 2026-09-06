@@ -4,11 +4,11 @@ A sophisticated ledger management system built with LangGraph and Streamlit, pow
 
 ## Features
 
-- 💬 Interactive chat interface with Claude AI
-- 📊 Ledger management and transaction tracking
-- 🔄 State management using LangGraph
-- 🎨 Modern Streamlit UI
-- ⚡ Fast and responsive
+- Interactive chat interface with Claude AI
+- Ledger management and transaction tracking
+- State management using LangGraph
+- Modern Streamlit UI
+- Fast and responsive
 
 ## Prerequisites
 
