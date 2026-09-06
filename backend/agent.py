@@ -1,25 +1,25 @@
-"""Ledger Management Agent using OpenAI, LangChain, and Pandas."""
+"""Ledger Management Agent using Anthropic Claude, LangGraph, and Pandas."""
 
 import os
 from typing import Optional
 
 import pandas as pd
+from anthropic import Anthropic
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
 
 
 load_dotenv()
 
 
 def initialize_agent():
-    """Initialize the OpenAI model."""
+    """Initialize the Anthropic Claude client."""
 
-    model = ChatOpenAI(
-        model=os.getenv("OPENAI_MODEL", "gpt-4"),
-        temperature=0.3
-    )
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable is required")
 
-    return model
+    client = Anthropic(api_key=api_key)
+    return client
 
 
 def get_ledger_dataframe(ledger_data: Optional[dict] = None) -> pd.DataFrame:
@@ -103,7 +103,7 @@ def run_agent_with_input(
     user_input: str,
     ledger_data: Optional[dict] = None
 ) -> str:
-    """Process the user's request using the OpenAI model."""
+    """Process the user's request using the Claude AI model."""
 
     ledger_context = build_ledger_context(ledger_data)
 
@@ -136,10 +136,16 @@ If required information is missing, clearly state that it is missing.
 """
 
     try:
-        response = agent.invoke(prompt)
+        response = agent.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-        if hasattr(response, "content"):
-            return response.content
+        if hasattr(response, "content") and response.content:
+            return response.content[0].text
 
         return str(response)
 
